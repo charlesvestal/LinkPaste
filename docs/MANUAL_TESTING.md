@@ -7,6 +7,17 @@ keystroke. This checklist is the substitute. Run it before cutting a release.
 Setup: copy `https://example.com/docs` to the clipboard before each case unless
 stated otherwise.
 
+Two traps worth knowing before you start, both of which produced false results
+the first time through:
+
+- **Don't reset a document by select-all-and-retype.** Typing over linked text
+  inherits the link attribute, so the new text arrives *already linked* and the
+  next paste looks like a false positive. Open a fresh document per case.
+- **Don't verify by copying the result back to the clipboard.** If the copy
+  selects nothing, the clipboard keeps its previous contents and you'll read a
+  stale value as though it were the result. Verify by looking at the document,
+  or in an app whose copy reliably produces a rich flavor.
+
 ## Core behavior
 
 | # | App | Steps | Expected |
@@ -17,7 +28,7 @@ stated otherwise.
 | 4 | Pages | Select a word, ⌘V | Word becomes a link. |
 | 5 | Slack (message box) | Select a word, ⌘V | Word becomes a link — matching Slack's own behavior, not fighting it. |
 | 6 | Notion | Select a word, ⌘V | Word becomes a link. |
-| 7 | Gmail in Chrome | Select a word, ⌘V | Word becomes a link. |
+| 7 | Gmail in Chrome | Select a word, ⌘V | Word becomes a link. **Chrome does not expose `AXSelectedText`** — verified by disabling the ⌘C fallback, after which the raw URL pastes instead. The probe is load-bearing for all browser content, not a nicety. |
 | 8 | Google Docs | Select a word, ⌘V | Word becomes a link. |
 
 ## Pass-through (must behave like an ordinary ⌘V)
@@ -30,7 +41,7 @@ stated otherwise.
 | 12 | Terminal — select text, ⌘V | Raw URL pastes. No rich text, no synthetic ⌘C. |
 | 13 | VS Code — select text, ⌘V | Raw URL pastes. |
 | 14 | TextEdit in **plain text** mode | Selection is replaced by the *selection text* (harmless no-op), never by markup. |
-| 15 | ⌘⇧V (paste and match style) | Untouched — normal system behavior. |
+| 15 | Paste and Match Style | Untouched — normal system behavior. **Use the app's real shortcut**: TextEdit binds this to ⌥⇧⌘V, not ⌘⇧V. Testing ⌘⇧V in TextEdit proves nothing — the key is simply unbound there, so "nothing happened" is indistinguishable from a pass. |
 | 16 | Toggle off in the menu bar, then ⌘V | Normal paste everywhere. |
 
 ## Clipboard integrity — the failure that matters most
