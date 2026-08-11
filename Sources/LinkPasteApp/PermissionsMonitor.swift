@@ -5,10 +5,14 @@ import Foundation
 
 /// Watches Accessibility permission, which this app cannot function without.
 ///
-/// macOS revokes trust whenever the binary's code signature changes — every
-/// rebuild during development, and every app update in the wild. The failure is
-/// silent: the event tap just refuses to be created and ⌘V quietly goes back to
-/// normal. Polling for it is what lets the menu bar say so out loud.
+/// Trust is keyed to the app's designated requirement (bundle ID + Team ID), so
+/// it survives ordinary updates signed with the same identity. It is dropped when
+/// that identity changes — and, because an ad-hoc signature is identified by its
+/// hash, on every rebuild of a locally-signed development build.
+///
+/// Either way the failure is silent: the event tap simply refuses to be created
+/// and ⌘V quietly goes back to normal. Polling is what lets the menu bar say so
+/// out loud instead of the app looking dead.
 final class PermissionsMonitor: ObservableObject {
 
     @Published private(set) var isTrusted: Bool = AXIsProcessTrusted()
