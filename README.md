@@ -1,5 +1,7 @@
 # LinkPaste
 
+<img src="docs/icon-preview.png" alt="LinkPaste icon" width="128" align="right">
+
 Slack's link-pasting behavior, everywhere on macOS.
 
 Select some text, copy a URL, press **⌘V** — instead of replacing your selection with a raw URL, the selection becomes a hyperlink to it.
@@ -50,10 +52,12 @@ Terminals, code editors, and password managers are excluded by default — they'
 ## Build from source
 
 ```sh
-swift build          # build
-swift test           # 30 unit tests
-scripts/make_app.sh  # assemble dist/LinkPaste.app
+swift build           # build
+swift test            # 30 unit tests
+scripts/make_app.sh   # assemble dist/LinkPaste.app
 ```
+
+The app icon is drawn in code — [`scripts/make_icon.swift`](scripts/make_icon.swift) — and regenerated on every build, so it lives in the diff rather than as an opaque binary. The glyph is custom-drawn because SF Symbols are licensed for use *in* an interface, not as an app icon.
 
 Releases are cut locally:
 
