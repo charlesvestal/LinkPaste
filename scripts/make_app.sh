@@ -33,10 +33,12 @@ cp "$BINARY" "$APP/Contents/MacOS/LinkPasteApp"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" \
     Resources/Info.plist > "$APP/Contents/Info.plist"
 
-if [[ -f Resources/AppIcon.icns ]]; then
-  cp Resources/AppIcon.icns "$APP/Contents/Resources/"
-  /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$APP/Contents/Info.plist"
-fi
+# Regenerated every build so the shipped icon always matches scripts/make_icon.swift
+# rather than drifting from a stale committed binary.
+echo "==> Generating icon"
+swift scripts/make_icon.swift
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+[[ -f "$APP/Contents/Resources/AppIcon.icns" ]] || { echo "error: icon missing" >&2; exit 1; }
 
 # Confirm the binary really is universal — a silently single-arch release would
 # only fail for the users who can't run it.

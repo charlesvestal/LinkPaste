@@ -4,3 +4,4 @@ dist/
 *.p12
 *.p8
 .DS_Store
+Resources/AppIcon.icns
