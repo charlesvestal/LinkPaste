@@ -15,16 +15,21 @@ import AppKit
 
 // MARK: - Geometry
 
-/// The rounded square fills the canvas edge to edge.
+/// The rounded square covers ~81% of the canvas, with the margin carrying its
+/// drop shadow.
 ///
-/// Arrived at by rendering what NSWorkspace actually draws and comparing against
-/// Slack, Notes and Firefox side by side. An inset tile left our artwork
-/// floating inside the system's container plate; a full-bleed square left that
-/// plate showing at the corners. Shipping apps fill the canvas with the rounded
-/// shape itself, so we do the same.
+/// Not a guess: measuring the opaque bounds of Slack's and Firefox's icns files
+/// gives 832/1024 and 834/1024 — both 81%. Filling the canvas instead (100%)
+/// renders visibly wrong next to them, and an inset plate *without* a shadow
+/// reads as a small tile floating in space, because the margin then looks like
+/// empty padding rather than the room the shadow needs.
 let canvas: CGFloat = 1024
-let plateRect = CGRect(x: 0, y: 0, width: canvas, height: canvas)
-let cornerRadius: CGFloat = 232
+let plateInset: CGFloat = 96
+let plateRect = CGRect(
+    x: plateInset, y: plateInset,
+    width: canvas - plateInset * 2, height: canvas - plateInset * 2
+)
+let cornerRadius: CGFloat = 186
 
 /// One half of the chain link: a capsule outline.
 let linkSize = CGSize(width: 424, height: 208)
@@ -61,6 +66,18 @@ func drawIcon(into rep: NSBitmapImageRep) {
 
     // Plate: indigo→blue, lighter at the top like a surface lit from above.
     let plate = NSBezierPath(roundedRect: plateRect, xRadius: cornerRadius, yRadius: cornerRadius)
+
+    // The shadow is what makes the inset read as depth rather than as padding.
+    cg.saveGState()
+    let shadow = NSShadow()
+    shadow.shadowColor = NSColor.black.withAlphaComponent(0.28)
+    shadow.shadowOffset = NSSize(width: 0, height: -12)
+    shadow.shadowBlurRadius = 26
+    shadow.set()
+    NSColor.black.setFill()
+    plate.fill()
+    cg.restoreGState()
+
     cg.saveGState()
     plate.addClip()
     let gradient = NSGradient(
@@ -162,6 +179,40 @@ for (name, px) in sizes {
 if let png = render(size: 512).representation(using: .png, properties: [:]) {
     try png.write(to: root.appendingPathComponent("docs/icon-preview.png"))
 }
+
+// Also emit an asset catalog.
+//
+// Shipping only an .icns gets the icon containerized by macOS 26 — drawn shrunk
+// inside a grey system plate. Apps that render natively (Firefox, for one)
+// declare CFBundleIconName and ship a compiled Assets.car as well; macOS prefers
+// that over the .icns. scripts/make_app.sh compiles this with actool.
+let appiconset = root.appendingPathComponent("build/Assets.xcassets/AppIcon.appiconset")
+try? fm.removeItem(at: root.appendingPathComponent("build/Assets.xcassets"))
+try fm.createDirectory(at: appiconset, withIntermediateDirectories: true)
+
+for (name, _) in sizes {
+    try fm.copyItem(
+        at: iconset.appendingPathComponent("\(name).png"),
+        to: appiconset.appendingPathComponent("\(name).png")
+    )
+}
+
+/// `icon_16x16@2x` is the 2x variant of the 16pt slot, and so on — the catalog
+/// wants the logical point size plus a scale, not the pixel count.
+let entries = sizes.map { name, _ -> String in
+    let base = name.replacingOccurrences(of: "@2x", with: "")
+    let points = base.replacingOccurrences(of: "icon_", with: "")
+    let scale = name.hasSuffix("@2x") ? "2x" : "1x"
+    return """
+        {"idiom":"mac","size":"\(points)","scale":"\(scale)","filename":"\(name).png"}
+    """
+}
+let contents = """
+{"images":[\(entries.joined(separator: ","))],"info":{"author":"linkpaste","version":1}}
+"""
+try contents.write(to: appiconset.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+try "{\"info\":{\"author\":\"linkpaste\",\"version\":1}}"
+    .write(to: root.appendingPathComponent("build/Assets.xcassets/Contents.json"), atomically: true, encoding: .utf8)
 
 let iconutil = Process()
 iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")

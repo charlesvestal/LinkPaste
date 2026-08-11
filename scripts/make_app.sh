@@ -38,7 +38,29 @@ sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" \
 echo "==> Generating icon"
 swift scripts/make_icon.swift
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
-[[ -f "$APP/Contents/Resources/AppIcon.icns" ]] || { echo "error: icon missing" >&2; exit 1; }
+
+# Compile the asset catalog too. An .icns alone gets containerized by macOS 26 —
+# drawn shrunk inside a grey system plate. Declaring CFBundleIconName with a
+# compiled Assets.car is what makes the icon render natively; actool emits both
+# the .car and a partial plist carrying that key.
+echo "==> Compiling asset catalog"
+xcrun actool build/Assets.xcassets \
+  --compile "$APP/Contents/Resources" \
+  --platform macosx \
+  --minimum-deployment-target 13.0 \
+  --app-icon AppIcon \
+  --output-partial-info-plist build/icon-partial.plist \
+  > /dev/null
+
+# Merge actool's CFBundleIconName into the app's Info.plist.
+ICON_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIconName" build/icon-partial.plist 2>/dev/null || echo "")
+if [[ -n "$ICON_NAME" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string $ICON_NAME" "$APP/Contents/Info.plist"
+fi
+
+for required in Resources/AppIcon.icns Resources/Assets.car; do
+  [[ -e "$APP/Contents/$required" ]] || { echo "error: missing $required" >&2; exit 1; }
+done
 
 # Confirm the binary really is universal — a silently single-arch release would
 # only fail for the users who can't run it.
