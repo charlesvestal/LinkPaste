@@ -26,6 +26,7 @@ Prior art, and why none of it fits:
 | URL matching | Schemes + bare domains on a curated TLD set | Slack's liberal feel without linking `README.md`. |
 | App shape | Menu bar app + settings window | Permission revocation is silent and frequent; the app needs somewhere to say so, and a fast off switch. |
 | Distribution | Developer ID, notarized, direct download | Not a choice: event taps and AX are unavailable to sandboxed apps, so the App Store is impossible. |
+| Signing | Locally, never in CI | CI signing needs the Developer ID private key in repository secrets. That key signs every product under this identity, so a leak means revoking, reissuing, and re-signing all of them — a bad trade for skipping one local script. |
 
 ## Structure
 
