@@ -5,83 +5,101 @@ import ServiceManagement
 
 /// User-facing settings, persisted to UserDefaults.
 ///
-/// Read from the event tap thread, written from the main thread. The values are
-/// all trivially-copyable and a torn read just means one paste behaves like the
-/// previous setting, so this doesn't warrant locking.
+/// Values are read from the event-tap thread and written from the main thread.
+/// They're all trivially copyable, and a torn read only means one paste behaves
+/// like the previous setting, so this doesn't warrant locking.
 final class Settings: ObservableObject {
 
-    private enum Key {
-        static let enabled = "isEnabled"
-        static let restoreDelayMs = "restoreDelayMilliseconds"
-        static let copyProbe = "allowsCopyProbe"
-        static let userDenylist = "userDenylist"
+    @Published var isEnabled: Bool { didSet { defaults.set(isEnabled, forKey: Key.enabled) } }
+
+    @Published var allowsCopyProbe: Bool { didSet { defaults.set(allowsCopyProbe, forKey: Key.copyProbe) } }
+
+    /// How long to wait after pasting before restoring the user's clipboard.
+    /// Exposed to the user because the right value is app-dependent and there's
+    /// no signal from the target app to detect it.
+    @Published var restoreDelayMilliseconds: Int {
+        didSet { defaults.set(restoreDelayMilliseconds, forKey: Key.restoreDelay) }
     }
+
+    @Published var userDenylist: [String] { didSet { defaults.set(userDenylist, forKey: Key.denylist) } }
+
+    /// What happened on the last ⌘V, shown in Settings so the app can explain
+    /// itself when it decides *not* to link something.
+    @Published var lastOutcomeDescription = "No pastes yet"
+
+    @Published private(set) var launchesAtLogin: Bool
+    /// Set when registering the login item fails, so the toggle doesn't silently
+    /// lie about a state the system rejected.
+    @Published private(set) var launchAtLoginFailure: String?
+
+    static let delayRange = 50...2000
+    static let defaultDelay = 250
 
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        defaults.register(defaults: [
-            Key.enabled: true,
-            Key.restoreDelayMs: 250,
-            Key.copyProbe: true,
-        ])
+        isEnabled = defaults.object(forKey: Key.enabled) as? Bool ?? true
+        allowsCopyProbe = defaults.object(forKey: Key.copyProbe) as? Bool ?? true
+        let storedDelay = defaults.object(forKey: Key.restoreDelay) as? Int ?? Self.defaultDelay
+        restoreDelayMilliseconds = storedDelay.clamped(to: Self.delayRange)
+        userDenylist = defaults.stringArray(forKey: Key.denylist) ?? []
+        launchesAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    @Published var lastOutcomeDescription: String = "No pastes yet"
+    // MARK: - Derived values
 
-    var isEnabled: Bool {
-        get { defaults.bool(forKey: Key.enabled) }
-        set { defaults.set(newValue, forKey: Key.enabled); objectWillChange.send() }
-    }
+    var restoreDelay: TimeInterval { Double(restoreDelayMilliseconds) / 1000 }
 
-    var allowsCopyProbe: Bool {
-        get { defaults.bool(forKey: Key.copyProbe) }
-        set { defaults.set(newValue, forKey: Key.copyProbe); objectWillChange.send() }
-    }
-
-    /// How long to wait after pasting before putting the user's clipboard back.
-    /// Exposed because the right value is app-dependent and we can't detect it.
-    var restoreDelay: TimeInterval {
-        get { Double(restoreDelayMilliseconds) / 1000.0 }
-    }
-
-    var restoreDelayMilliseconds: Int {
-        get {
-            let stored = defaults.integer(forKey: Key.restoreDelayMs)
-            return stored == 0 ? 250 : min(max(stored, 50), 2000)
-        }
-        set { defaults.set(newValue, forKey: Key.restoreDelayMs); objectWillChange.send() }
-    }
-
-    /// Long enough for a sluggish Electron app to answer ⌘C, short enough that a
-    /// non-copying app doesn't leave the user staring at a stalled keystroke.
+    /// Long enough for a sluggish Electron app to answer ⌘C, short enough that an
+    /// app which never copies doesn't leave the user staring at a stalled keystroke.
     var copyProbeTimeout: TimeInterval { 0.35 }
 
-    var userDenylist: [String] {
-        get { defaults.stringArray(forKey: Key.userDenylist) ?? [] }
-        set { defaults.set(newValue, forKey: Key.userDenylist); objectWillChange.send() }
+    var policy: AppPolicy { AppPolicy(userDenylist: Set(userDenylist)) }
+
+    /// Bundle IDs excluded without the user having to configure anything.
+    var builtInDenylist: [String] { AppPolicy.defaultDenylist.sorted() }
+
+    // MARK: - Denylist editing
+
+    func addToDenylist(_ rawEntry: String) {
+        let entry = rawEntry.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !entry.isEmpty, !userDenylist.contains(entry) else { return }
+        userDenylist.append(entry)
     }
 
-    var policy: AppPolicy {
-        AppPolicy(userDenylist: Set(userDenylist))
+    func removeFromDenylist(_ entry: String) {
+        userDenylist.removeAll { $0 == entry }
     }
 
     // MARK: - Launch at login
 
-    var launchesAtLogin: Bool {
-        get { SMAppService.mainApp.status == .enabled }
-        set {
-            do {
-                if newValue {
-                    try SMAppService.mainApp.register()
-                } else {
-                    try SMAppService.mainApp.unregister()
-                }
-            } catch {
-                NSLog("LinkPaste: launch-at-login change failed: \(error.localizedDescription)")
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
             }
-            objectWillChange.send()
+            launchAtLoginFailure = nil
+        } catch {
+            // Registering fails for unsigned or non-/Applications builds. Surface
+            // it rather than leaving the toggle showing a state that isn't real.
+            launchAtLoginFailure = error.localizedDescription
         }
+        launchesAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    private enum Key {
+        static let enabled = "isEnabled"
+        static let copyProbe = "allowsCopyProbe"
+        static let restoreDelay = "restoreDelayMilliseconds"
+        static let denylist = "userDenylist"
+    }
+}
+
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

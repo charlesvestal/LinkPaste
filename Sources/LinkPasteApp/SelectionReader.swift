@@ -17,6 +17,13 @@ enum SelectionReader {
     enum Source {
         case accessibility
         case copyProbe
+
+        var description: String {
+            switch self {
+            case .accessibility: "Accessibility"
+            case .copyProbe: "⌘C fallback"
+            }
+        }
     }
 
     struct Result {

@@ -1,41 +1,50 @@
 import AppKit
 import SwiftUI
 
+/// Wires the pieces together and owns the Settings window. Everything with real
+/// behavior lives elsewhere; this file should stay readable as a summary of how
+/// the app is assembled.
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let settings = Settings()
     private let permissions = PermissionsMonitor()
     private let eventTap = EventTapController()
-    private var engine: PasteEngine!
+    private let menuBar = MenuBarController()
 
-    private var statusItem: NSStatusItem!
+    private var engine: PasteEngine!
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         engine = PasteEngine(settings: settings)
         engine.onOutcome = { [weak self] outcome in
-            self?.settings.lastOutcomeDescription = Self.describe(outcome)
+            self?.settings.lastOutcomeDescription = outcome.description
         }
 
         eventTap.shouldInterceptCommandV = { [weak self] in
             self?.engine.shouldIntercept() ?? false
         }
 
+        menuBar.onOpenSettings = { [weak self] in self?.showSettings() }
+        menuBar.onToggleEnabled = { [weak self] in
+            guard let self else { return }
+            settings.isEnabled.toggle()
+            refreshMenuBar()
+        }
+
         permissions.onChange = { [weak self] trusted in
-            trusted ? self?.startTap() : self?.eventTap.stop()
-            self?.updateStatusIcon()
+            guard let self else { return }
+            trusted ? startTap() : eventTap.stop()
+            refreshMenuBar()
         }
         permissions.start()
-
-        setUpStatusItem()
 
         if permissions.isTrusted {
             startTap()
         } else {
             permissions.requestAccess()
-            showSettings(nil)
+            showSettings()
         }
-        updateStatusIcon()
+        refreshMenuBar()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -49,75 +58,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Menu bar
-
-    private func setUpStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        let menu = NSMenu()
-        menu.addItem(withTitle: "Settings…", action: #selector(showSettings(_:)), keyEquivalent: ",").target = self
-        menu.addItem(.separator())
-        let toggle = menu.addItem(
-            withTitle: "Enable Link Pasting",
-            action: #selector(toggleEnabled(_:)),
-            keyEquivalent: ""
-        )
-        toggle.target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit LinkPaste", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-
-        menu.delegate = self
-        statusItem.menu = menu
+    private func refreshMenuBar() {
+        let state: MenuBarController.State =
+            !permissions.isTrusted ? .needsPermission
+            : settings.isEnabled ? .active
+            : .paused
+        menuBar.update(state: state, isEnabled: settings.isEnabled)
     }
 
-    private func updateStatusIcon() {
-        guard let button = statusItem.button else { return }
-        let healthy = permissions.isTrusted && settings.isEnabled
-        let symbol = healthy ? "link" : "link.badge.plus"
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "LinkPaste")
-        button.appearsDisabled = !healthy
-        button.toolTip = permissions.isTrusted
-            ? (settings.isEnabled ? "LinkPaste is active" : "LinkPaste is paused")
-            : "LinkPaste needs Accessibility access"
-    }
+    // MARK: - Settings window
 
-    @objc private func toggleEnabled(_ sender: Any?) {
-        settings.isEnabled.toggle()
-        updateStatusIcon()
-    }
+    private static let settingsWindowSize = NSSize(width: 480, height: 560)
 
-    @objc private func showSettings(_ sender: Any?) {
-        if let settingsWindow {
-            settingsWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let hosting = NSHostingController(rootView: SettingsView(settings: settings, permissions: permissions))
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "LinkPaste"
-        window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false
-        window.center()
+    private func showSettings() {
+        let window = settingsWindow ?? makeSettingsWindow()
         settingsWindow = window
-
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private static func describe(_ outcome: PasteEngine.Outcome) -> String {
-        switch outcome {
-        case let .linked(text, url, source):
-            let via = source == .accessibility ? "Accessibility" : "⌘C fallback"
-            return "Linked “\(text)” → \(url.absoluteString) (via \(via))"
-        case let .passedThrough(reason):
-            return "Pasted normally — \(reason)"
-        }
-    }
-}
+    private func makeSettingsWindow() -> NSWindow {
+        // Two ways to collapse this window to an invisible sliver, both of which
+        // this app shipped with at some point:
+        //
+        //  1. Assigning `window.styleMask` *after* the contentViewController is
+        //     attached — AppKit recomputes the frame and it becomes ~1x32 points.
+        //  2. Assigning `contentViewController` after init — that resizes the
+        //     window to the controller's fitting size, which is zero before the
+        //     SwiftUI view has been laid out.
+        //
+        // So: let NSWindow(contentViewController:) build the window and its
+        // default style mask, drive the size through preferredContentSize, and
+        // never touch styleMask. Both failures are silent — the window reports
+        // isVisible == true while being invisible — so verify by size, not by
+        // whether the call appeared to succeed.
+        let hosting = NSHostingController(rootView: SettingsView(settings: settings, permissions: permissions))
+        hosting.preferredContentSize = Self.settingsWindowSize
 
-extension AppDelegate: NSMenuDelegate {
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        menu.item(withTitle: "Enable Link Pasting")?.state = settings.isEnabled ? .on : .off
+        let window = NSWindow(contentViewController: hosting)
+        window.title = "LinkPaste"
+        window.isReleasedWhenClosed = false
+        window.setContentSize(Self.settingsWindowSize)
+        window.center()
+        return window
     }
 }

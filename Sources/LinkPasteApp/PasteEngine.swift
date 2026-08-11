@@ -29,6 +29,17 @@ final class PasteEngine {
     enum Outcome {
         case linked(text: String, url: URL, source: SelectionReader.Source)
         case passedThrough(reason: String)
+
+        /// Phrased for the "Last paste" line in Settings — this is how the app
+        /// explains itself when it decides *not* to link something.
+        var description: String {
+            switch self {
+            case let .linked(text, url, source):
+                "Linked “\(text)” → \(url.absoluteString) (via \(source.description))"
+            case let .passedThrough(reason):
+                "Pasted normally — \(reason)"
+            }
+        }
     }
 
     init(settings: Settings, pasteboard: NSPasteboard = .general) {
