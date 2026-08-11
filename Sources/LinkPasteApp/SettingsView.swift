@@ -129,40 +129,20 @@ private struct BehaviorSection: View {
 private struct DenylistSection: View {
     @ObservedObject var settings: Settings
 
-    @State private var newEntry = ""
     @State private var showsBuiltIns = false
+    @State private var runningApps: [AppInfo] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Never link-paste in these apps")
                 .font(.headline)
-            Explanation("Terminals, code editors, and password managers are excluded automatically. Add bundle identifiers here for anything else.")
+            Explanation("Terminals, code editors, and password managers are excluded automatically. Add anything else here.")
 
-            ForEach(settings.userDenylist, id: \.self) { entry in
-                HStack {
-                    Text(entry).font(.system(.body, design: .monospaced))
-                    Spacer()
-                    Button {
-                        settings.removeFromDenylist(entry)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    // An unlabeled icon button announces as "minus circle" or
-                    // nothing at all.
-                    .accessibilityLabel("Remove \(entry)")
-                }
-                .accessibilityElement(children: .combine)
+            ForEach(settings.userDenylist, id: \.self) { bundleID in
+                DenylistRow(bundleID: bundleID) { settings.removeFromDenylist(bundleID) }
             }
 
-            HStack {
-                TextField("com.example.App", text: $newEntry)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Bundle identifier to exclude")
-                    .onSubmit(add)  // Return should work; reaching for the mouse shouldn't be required
-                Button("Add", action: add)
-                    .disabled(trimmedEntry.isEmpty)
-            }
+            addControls
 
             DisclosureGroup("Excluded automatically (\(settings.builtInDenylist.count))", isExpanded: $showsBuiltIns) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -177,18 +157,90 @@ private struct DenylistSection: View {
             }
             .font(.caption)
         }
+        .onAppear { refreshRunningApps() }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Excluded apps")
     }
 
-    private var trimmedEntry: String {
-        newEntry.trimmingCharacters(in: .whitespaces)
+    private var addControls: some View {
+        HStack {
+            // Refreshed when the menu is opened rather than on a timer: the list
+            // is only ever looked at in the instant before something is picked.
+            Menu("Add Running App…") {
+                if selectableRunningApps.isEmpty {
+                    Text("No other apps running")
+                } else {
+                    ForEach(selectableRunningApps) { app in
+                        Button {
+                            settings.addToDenylist(app.bundleID)
+                        } label: {
+                            if let icon = app.icon {
+                                Label { Text(app.name) } icon: { Image(nsImage: icon) }
+                            } else {
+                                Text(app.name)
+                            }
+                        }
+                    }
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .onTapGesture { refreshRunningApps() }
+
+            Button("Choose App…") {
+                if let app = AppCatalog.chooseApplication() {
+                    settings.addToDenylist(app.bundleID)
+                }
+            }
+
+            Spacer()
+        }
     }
 
-    private func add() {
-        guard !trimmedEntry.isEmpty else { return }
-        settings.addToDenylist(trimmedEntry)
-        newEntry = ""
+    /// Hides apps already excluded, so picking one twice isn't offered.
+    private var selectableRunningApps: [AppInfo] {
+        let excluded = Set(settings.userDenylist)
+        return runningApps.filter { !excluded.contains($0.bundleID) }
+    }
+
+    private func refreshRunningApps() {
+        runningApps = AppCatalog.runningApps()
+    }
+}
+
+/// One excluded app: icon, name, and the identifier it actually matches on.
+private struct DenylistRow: View {
+    let bundleID: String
+    let remove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let icon = AppCatalog.icon(forBundleID: bundleID) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 18, height: 18)
+                    .accessibilityHidden(true)
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(AppCatalog.displayName(forBundleID: bundleID))
+                // Kept visible: it's what the matching actually uses, and it
+                // disambiguates apps that share a display name.
+                Text(bundleID)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: remove) {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.borderless)
+            // An unlabeled icon button announces as "minus circle", or nothing.
+            .accessibilityLabel("Remove \(AppCatalog.displayName(forBundleID: bundleID))")
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

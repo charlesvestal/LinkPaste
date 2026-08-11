@@ -38,7 +38,7 @@ Deliberately *not* matched: anything containing whitespace, and filenames that h
 
 ## Where it doesn't run
 
-Terminals, code editors, and password managers are excluded by default — they're plain-text surfaces where a rich paste is useless, and in the case of password managers, somewhere a synthetic ⌘C has no business going. Add your own bundle IDs in Settings.
+Terminals, code editors, and password managers are excluded by default — they're plain-text surfaces where a rich paste is useless, and in the case of password managers, somewhere a synthetic ⌘C has no business going. Add your own in Settings by picking from your running apps or choosing an app on disk; the built-in exclusions are listed there too, so you can see what's already covered.
 
 ## Settings
 
