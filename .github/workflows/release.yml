@@ -1,0 +1,105 @@
+name: Release
+
+# Builds a universal, Developer ID-signed, notarized, stapled LinkPaste.app and
+# attaches it to a GitHub release.
+#
+# Triggered by pushing a version tag:
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Required repository secrets (see scripts/setup_ci_secrets.sh):
+#   DEVELOPER_ID_CERT_P12       base64 of the exported Developer ID .p12
+#   DEVELOPER_ID_CERT_PASSWORD  password used when exporting that .p12
+#   SIGN_IDENTITY               e.g. "Developer ID Application: Name (TEAMID)"
+#   NOTARY_KEY_P8               base64 of the App Store Connect .p8 key
+#   NOTARY_KEY_ID               the key's ID
+#   NOTARY_ISSUER_ID            the issuer UUID
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # scripts/make_app.sh reads tags and commit count
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build LinkPaste.app
+        run: |
+          chmod +x scripts/*.sh
+          scripts/make_app.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          # A dedicated, ephemeral keychain — never touch the runner's default.
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" \
+            -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+
+          # Without this, codesign blocks on a GUI keychain prompt that will
+          # never be answered and the job hangs until it times out.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+
+          # Prepend, keeping the system keychain in the search list.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Sign, notarize, and staple
+        env:
+          SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          echo "$NOTARY_KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          export NOTARY_KEY_PATH="$RUNNER_TEMP/notary.p8"
+          scripts/sign_notarize.sh
+          rm -f "$RUNNER_TEMP/notary.p8"
+
+      - name: Verify the artifact is really notarized
+        run: |
+          # Belt and braces: the release must not ship an app that Gatekeeper
+          # will reject on a user's machine.
+          xcrun stapler validate dist/LinkPaste.app
+          spctl -a -vvv -t exec dist/LinkPaste.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LinkPaste
+          path: dist/LinkPaste.zip
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/LinkPaste.zip \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Deliberately minimal.
+
+	  There is no App Sandbox entitlement here, and there cannot be: a sandboxed
+	  process cannot install a CGEventTap or drive the Accessibility API, which is
+	  the entire app. That also means LinkPaste can never ship on the Mac App
+	  Store — Developer ID distribution only.
+
+	  Accessibility access is granted by the user in System Settings (TCC), not by
+	  an entitlement, so nothing needs declaring for it.
+	-->
+</dict>
+</plist>

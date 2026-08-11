@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build
+      - run: swift test
+
+      # Catch bundle-assembly breakage here rather than during a release, where
+      # it would fail after the notarization round-trip has already started.
+      - name: Build unsigned app bundle
+        run: |
+          chmod +x scripts/*.sh
+          scripts/make_app.sh 0.0.0-ci
