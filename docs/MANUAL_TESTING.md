@@ -26,7 +26,7 @@ the first time through:
 | 2 | Mail (new message) | Select a word, ⌘V | Word becomes a link. |
 | 3 | Notes | Select a word, ⌘V | Word becomes a link. |
 | 4 | Pages | Select a word, ⌘V | Word becomes a link. |
-| 5 | Slack (message box) | Select a word, ⌘V | Word becomes a link — matching Slack's own behavior, not fighting it. |
+| 5 | Slack (message box) | Select a word, ⌘V | Word becomes a link — matching Slack's own behavior, not fighting it. **Verify visually**, not via the clipboard: Slack's ⌘C exposes no RTF/HTML flavor, and with an empty selection it leaves the previous clipboard in place, so a copy-back check silently reports stale data as if it were the result. Look for blue underlined text with the link button active in the toolbar. |
 | 6 | Notion | Select a word, ⌘V | Word becomes a link. |
 | 7 | Gmail in Chrome | Select a word, ⌘V | Word becomes a link. **Chrome does not expose `AXSelectedText`** — verified by disabling the ⌘C fallback, after which the raw URL pastes instead. The probe is load-bearing for all browser content, not a nicety. |
 | 8 | Google Docs | Select a word, ⌘V | Word becomes a link. |
