@@ -55,13 +55,15 @@ swift test           # 30 unit tests
 scripts/make_app.sh  # assemble dist/LinkPaste.app
 ```
 
-Signed releases are cut by pushing a tag:
+Releases are cut locally:
 
 ```sh
-git tag v0.1.0 && git push origin v0.1.0
+scripts/release.sh 0.1.0
 ```
 
-That runs [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds a universal binary, signs it with Developer ID, notarizes and staples it, and attaches the result to a GitHub release. Credentials come from repository secrets — run [`scripts/setup_ci_secrets.sh`](scripts/setup_ci_secrets.sh) once to set them up.
+That tests, builds a universal binary, signs it with Developer ID, notarizes and staples it, tags, and publishes a GitHub release.
+
+Signing runs on a Mac rather than in CI on purpose: doing it in Actions would mean putting the Developer ID private key into repository secrets, where any job step or compromised action could read it. CI ([`ci.yml`](.github/workflows/ci.yml)) builds and tests; it never touches a credential.
 
 ## Not on the Mac App Store
 
