@@ -24,7 +24,7 @@ Prior art, and why none of it fits:
 | Trigger | Hijack ⌘V globally, with a denylist | The whole value is not having to think about it. A separate shortcut is just a worse ⌘K. |
 | Selection read | Accessibility first, synthetic ⌘C as fallback | AX alone is dead in browser web content and much of Electron — i.e. where most rich-text editing happens. |
 | URL matching | Schemes + bare domains on a curated TLD set | Slack's liberal feel without linking `README.md`. |
-| App shape | Menu bar app + settings window | Permission revocation is silent and frequent; the app needs somewhere to say so, and a fast off switch. |
+| App shape | Menu bar app + settings window | Losing the permission is silent, and so is being toggled off; the app needs somewhere to say which, plus a fast off switch. |
 | Distribution | Developer ID, notarized, direct download | Not a choice: event taps and AX are unavailable to sandboxed apps, so the App Store is impossible. |
 | Signing | Locally, never in CI | CI signing needs the Developer ID private key in repository secrets. That key signs every product under this identity, so a leak means revoking, reissuing, and re-signing all of them — a bad trade for skipping one local script. |
 
