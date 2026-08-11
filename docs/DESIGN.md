@@ -72,9 +72,13 @@ detect the right value.
 post carries a signature in `eventSourceUserData`; the callback checks it first.
 Without that the app pastes into itself forever.
 
-**Accessibility trust is revoked on every signature change.** Every rebuild in
-development, every update in the wild. It fails silently — `tapCreate` just
-returns nil. `PermissionsMonitor` polls for it so the menu bar can say so.
+**Accessibility trust disappears silently.** It's keyed to the designated
+requirement (bundle ID + Team ID), so it survives ordinary Developer ID updates —
+but it's dropped when the signing identity changes, and on every rebuild of an
+ad-hoc-signed dev build, whose signature is identified by its hash. Whichever
+happens, `tapCreate` just returns nil and ⌘V goes quietly back to normal.
+`PermissionsMonitor` polls so the menu bar can say so instead of the app looking
+dead.
 
 **The ⌘C probe is a real keystroke in someone else's app.** Harmless in a text
 editor; not something to fire into a password manager, hence the denylist. It's

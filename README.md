@@ -18,7 +18,7 @@ Download `LinkPaste.zip` from [Releases](../../releases), unzip, and drag `LinkP
 
 On first launch it will ask for **Accessibility** access. It genuinely cannot work without this — seeing ⌘V and reading your selection both require it.
 
-> **Note:** macOS revokes Accessibility access whenever an app's code signature changes, which includes every update. If link-pasting silently stops working after an update, that's why — the menu bar icon will show it, and Settings has a button to re-grant.
+> **Note:** This permission survives normal updates — it's tied to the app's signing identity, not to each build. It is dropped if that identity changes, and on every rebuild of a locally ad-hoc-signed development build. If link pasting silently stops working, that's the first thing to check: the menu bar icon shows it, and Settings has a button to re-grant.
 
 ## How it works
 

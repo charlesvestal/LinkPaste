@@ -60,4 +60,4 @@ the first time through:
 | 21 | Launch without Accessibility access | Settings window opens, menu bar icon shows the warning state, ⌘V behaves normally. |
 | 22 | Grant access while running | Tap starts within ~2s, no relaunch needed. |
 | 23 | Revoke access while running | Icon flips to the warning state, ⌘V returns to normal behavior. |
-| 24 | Rebuild the app and relaunch | macOS revokes trust; the app must say so rather than failing silently. |
+| 24 | Rebuild ad-hoc signed and relaunch | Trust is dropped (an ad-hoc signature is identified by its hash), and the app must say so rather than failing silently. A Developer ID rebuild **keeps** its grant — verified — so don't use one for this case. |

@@ -39,7 +39,7 @@ private struct PermissionsSection: View {
             .foregroundStyle(permissions.isTrusted ? Color.green : Color.orange)
 
             if !permissions.isTrusted {
-                Explanation("LinkPaste can't see ⌘V without it. macOS also revokes this every time the app is updated — if link pasting stops working, check here first.")
+                Explanation("LinkPaste can't see ⌘V without it. If link pasting stops working, check here first — macOS drops this permission when an app's signing identity changes.")
 
                 HStack {
                     Button("Open Privacy Settings") { permissions.openSettings() }
