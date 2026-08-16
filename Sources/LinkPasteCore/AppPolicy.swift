@@ -6,6 +6,10 @@ import Foundation
 /// fundamentally a plain-text surface — terminals, code editors, password
 /// managers — must get an untouched paste, because inserting rich text there
 /// either does nothing useful or (in some Electron editors) dumps literal markup.
+///
+/// `markdownList` overrides the denylist, built-in or user's own: adding an app
+/// there is a deliberate per-app choice that link-pasting belongs there, once the
+/// output is plain-text markdown rather than RTF/HTML.
 public struct AppPolicy: Equatable {
 
     /// Bundle IDs that never get a link-paste. Prefixes are matched too, so
@@ -66,7 +70,11 @@ public struct AppPolicy: Equatable {
         // No bundle ID means we can't reason about the target at all. Don't
         // gamble — a normal paste is always the safe answer.
         guard let bundleID, !bundleID.isEmpty else { return false }
-        return !isDenied(bundleID)
+        // Explicitly adding an app to the markdown list is a deliberate,
+        // per-app choice — it overrides a denylist entry (built-in or user's
+        // own) for that app, on the theory that a user who asked for
+        // markdown output there has already decided link-pasting belongs.
+        return usesMarkdownLinks(bundleID: bundleID) || !isDenied(bundleID)
     }
 
     public func usesMarkdownLinks(bundleID: String?) -> Bool {

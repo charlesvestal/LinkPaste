@@ -257,7 +257,7 @@ private struct MarkdownListSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Use markdown links in")
                 .font(.headline)
-            Explanation("For apps whose rich-text paste doesn't work — e.g. Slack with \"Format messages with markup\" on. Adds [text](url) as plain text instead.")
+            Explanation("For apps whose rich-text paste doesn't work — e.g. Slack with \"Format messages with markup\" on. Adds [text](url) as plain text instead. This overrides an app's denylist entry, built-in or not.")
 
             ForEach(settings.userMarkdownList, id: \.self) { bundleID in
                 DenylistRow(bundleID: bundleID) { settings.removeFromMarkdownList(bundleID) }

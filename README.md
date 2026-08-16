@@ -46,6 +46,8 @@ Terminals, code editors, and password managers are excluded by default — they'
 
 Some apps' rich-text field isn't actually rich text — Slack with **Format messages with markup** turned on, for instance, treats a paste as literal characters to type, not HTML to render. RTF/HTML pasted there doesn't degrade gracefully; it just doesn't link. There's no way for LinkPaste to detect that setting from outside the app, so it's opt-in: add an app under **Use markdown links in** in Settings, and pastes there switch to a plain-text `[selection](url)` instead of RTF/HTML. Nothing is pre-populated — this is off for every app until you turn it on.
 
+Adding an app here also lifts it out of the denylist above, built-in or not — a plain-text editor like VS Code is excluded because RTF/HTML would dump garbage into it, but that reasoning doesn't apply once the output is markdown text. Marking an app as a markdown composer is treated as you deciding link-pasting belongs there.
+
 ## Settings
 
 - **Enable link pasting** — global on/off.
