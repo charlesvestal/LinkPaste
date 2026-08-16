@@ -27,17 +27,26 @@ final class PasteEngine {
     var onOutcome: ((Outcome) -> Void)?
 
     enum Outcome {
-        case linked(text: String, url: URL, source: SelectionReader.Source)
+        case linked(text: String, url: URL, source: SelectionReader.Source, observed: DestinationKind?)
+        case linkedAsMarkdown(text: String, url: URL, source: SelectionReader.Source)
         case passedThrough(reason: String)
 
         /// Phrased for the "Last paste" line in Settings — this is how the app
         /// explains itself when it decides *not* to link something.
         var description: String {
             switch self {
-            case let .linked(text, url, source):
-                "Linked “\(text)” → \(url.absoluteString) (via \(source.description))"
+            case let .linked(text, url, source, observed):
+                var line = "Linked “\(text)” → \(url.absoluteString) (via \(source.description))"
+                switch observed {
+                case .rich: line += " — the destination read rich text"
+                case .plain: line += " — but the destination read plain text, so it got the URL"
+                case nil: line += " — the destination never read the pasteboard"
+                }
+                return line
+            case let .linkedAsMarkdown(text, url, source):
+                return "Pasted [\(text)](\(url.absoluteString)) as markdown (via \(source.description))"
             case let .passedThrough(reason):
-                "Pasted normally — \(reason)"
+                return "Pasted normally — \(reason)"
             }
         }
     }
@@ -123,6 +132,19 @@ final class PasteEngine {
             return passThrough(restoring: nil, reason: "clipboard is no longer a URL")
         }
 
+        let bundleID = currentBundleID
+        let destination = DestinationInspector.inspect(bundleID: bundleID)
+        let known = destination.flatMap { settings.destinations.kind(for: $0) }
+        let wantsMarkdown = settings.policy.usesMarkdownLinks(bundleID: bundleID)
+            || (known == .plain && settings.usesMarkdownInPlainDestinations)
+
+        // Somewhere we have already watched read the plain flavor. It cannot
+        // render a link, so hand the keystroke back now — before the ⌘C probe
+        // fires a real keystroke into it and before the clipboard is touched.
+        if known == .plain, !wantsMarkdown {
+            return passThrough(restoring: nil, reason: "\(destination?.label ?? "this field") reads plain text")
+        }
+
         let selection = SelectionReader.read(
             pasteboard: pasteboard,
             allowCopyProbe: settings.allowsCopyProbe,
@@ -135,45 +157,64 @@ final class PasteEngine {
             return passThrough(restoring: snapshot, reason: "no text selected")
         }
 
-        if settings.policy.usesMarkdownLinks(bundleID: currentBundleID) {
+        if wantsMarkdown {
+            // Only a plain flavor goes out, so there is nothing to learn from this
+            // paste — the destination can only read the one thing we offered.
             let markdown = LinkPayloadBuilder.buildMarkdown(text: selection.text, url: url)
-            writeMarkdown(markdown)
-        } else {
-            guard let payload = LinkPayloadBuilder.build(text: selection.text, url: url) else {
-                return passThrough(restoring: snapshot, reason: "could not build rich text")
-            }
-            write(payload)
+            let changeCount = writeMarkdown(markdown)
+            KeyPoster.postCommandV()
+            Thread.sleep(forTimeInterval: settings.restoreDelay)
+            restore(snapshot, ifPasteboardIsStillAt: changeCount)
+            return report(.linkedAsMarkdown(text: selection.text, url: url, source: selection.source))
+        }
+
+        guard let payload = LinkPayloadBuilder.build(text: selection.text, url: url) else {
+            return passThrough(restoring: snapshot, reason: "could not build rich text")
+        }
+
+        // Promised rather than finished data: the destination's read comes back to
+        // us as a callback, which is both the rich/plain verdict and the signal
+        // that it is safe to restore the clipboard. See `PromisedPaste`.
+        let promised = PromisedPaste(payloads: payload.flavors)
+        guard promised.write(to: pasteboard) else {
+            return passThrough(restoring: snapshot, reason: "could not write the pasteboard")
         }
         KeyPoster.postCommandV()
 
-        // No app tells us when it has finished reading the pasteboard, so this
-        // delay is a guess. Too short and we restore the old clipboard before a
-        // slow app reads ours — which pastes the *wrong thing*. Hence the
-        // deliberately generous default.
-        Thread.sleep(forTimeInterval: settings.restoreDelay)
-        snapshot.restore(to: pasteboard)
+        // Returns as soon as the destination reads, rather than always sleeping
+        // the full delay. `restoreDelay` is now only the ceiling on how long we
+        // will wait for an app that never reads at all.
+        let observed = promised.waitForRead(timeout: settings.restoreDelay)
+        if let observed, let destination {
+            settings.destinations.record(observed, for: destination)
+        }
 
-        report(.linked(text: selection.text, url: url, source: selection.source))
+        if promised.stillOwnsPasteboard(pasteboard) {
+            snapshot.restore(to: pasteboard)
+        }
+
+        report(.linked(text: selection.text, url: url, source: selection.source, observed: observed))
     }
 
-    private func write(_ payload: LinkPayload) {
-        pasteboard.clearContents()
-        let item = NSPasteboardItem()
-        item.setData(payload.rtf, forType: .rtf)
-        item.setData(payload.html, forType: .html)
-        item.setString(payload.plain, forType: .string)
-        pasteboard.writeObjects([item])
+    /// Puts the user's clipboard back, unless it is no longer ours to put back.
+    private func restore(_ snapshot: PasteboardSnapshot, ifPasteboardIsStillAt changeCount: Int) {
+        // Someone else owns the clipboard now — the user hit ⌘C, or another app
+        // wrote to it. Putting our snapshot back would destroy their copy.
+        guard pasteboard.changeCount == changeCount else { return }
+        snapshot.restore(to: pasteboard)
     }
 
     /// Markdown-mode composers (Slack with "Format messages with markup" on)
     /// read pasted content as literal text to type, not rich text to render.
     /// Writing RTF/HTML there is the exact bug this exists to avoid, so only
     /// a plain-text flavor goes on the pasteboard.
-    private func writeMarkdown(_ markdown: String) {
+    @discardableResult
+    private func writeMarkdown(_ markdown: String) -> Int {
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         item.setString(markdown, forType: .string)
         pasteboard.writeObjects([item])
+        return pasteboard.changeCount
     }
 
     private func passThrough(restoring snapshot: PasteboardSnapshot?, reason: String) {

@@ -11,6 +11,7 @@ struct SettingsView: View {
             BehaviorSection(settings: settings)
             DenylistSection(settings: settings)
             MarkdownListSection(settings: settings)
+            DestinationsSection(settings: settings, destinations: settings.destinations)
             LastPasteSection(settings: settings)
         }
         .formStyle(.grouped)
@@ -319,6 +320,73 @@ private struct MarkdownListSection: View {
 
     private func refreshRunningApps() {
         runningApps = AppCatalog.runningApps()
+    }
+}
+
+// MARK: - Learned destinations
+
+/// What the app has worked out about where pastes land, and the two levers over
+/// it. Both exist because the detection has exactly one blind spot — a
+/// destination that reads the rich flavor and then discards the link looks
+/// identical to one that renders it — and the user is the only one who can see it.
+private struct DestinationsSection: View {
+    @ObservedObject var settings: Settings
+    @ObservedObject var destinations: LedgerStore
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Explanation("LinkPaste watches which pasteboard flavor each field reads — rich text or plain — and remembers. Fields that read plain text are left alone entirely the next time, so ⌘V behaves exactly as it would without LinkPaste running.")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Use markdown links in plain-text fields", isOn: $settings.usesMarkdownInPlainDestinations)
+                    Explanation("Applies the markdown treatment wherever a field turns out to be plain, instead of only in the apps listed above. Off means those fields get an ordinary paste of the URL.")
+                }
+
+                if let context = destinations.lastContext, let kind = destinations.lastKind {
+                    lastDestination(context: context, kind: kind)
+                }
+
+                HStack {
+                    Button("Forget Learned Fields") { destinations.forgetAll() }
+                        .buttonStyle(.bordered)
+                        .disabled(destinations.learnedCount == 0)
+                    Text(learnedCountLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Learned fields")
+        } header: {
+            Text("Learned fields")
+        }
+    }
+
+    private var learnedCountLabel: String {
+        switch destinations.learnedCount {
+        case 0: "Nothing learned yet"
+        case 1: "1 field remembered"
+        case let count: "\(count) fields remembered"
+        }
+    }
+
+    private func lastDestination(context: DestinationContext, kind: DestinationKind) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(context.label) — \(kind.description)\(destinations.lastIsPinned ? " (set by you)" : "")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if kind == .rich, !destinations.lastIsPinned {
+                Button("Treat as Plain Text") { destinations.pinLastAsPlain() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Explanation("Use this if a link went in as unlinked text: some editors accept formatted text and then drop the link, which looks the same from outside.")
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

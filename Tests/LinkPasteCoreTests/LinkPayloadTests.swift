@@ -10,15 +10,30 @@ final class LinkPayloadTests: XCTestCase {
         let payload = try XCTUnwrap(LinkPayloadBuilder.build(text: "the docs", url: url))
         XCTAssertFalse(payload.rtf.isEmpty)
         XCTAssertFalse(payload.html.isEmpty)
+        XCTAssertEqual(payload.plain, url.absoluteString)
+    }
+
+    func testPlainFallbackIsTheURL() throws {
+        // The only time this flavor is read is the time we were wrong about a
+        // destination. Leaving the selection unchanged makes that a ⌘V that
+        // silently does nothing; pasting the URL makes it an ordinary paste,
+        // which is what a confused LinkPaste is supposed to look like.
+        let payload = try XCTUnwrap(LinkPayloadBuilder.build(text: "the docs", url: url))
+        XCTAssertEqual(payload.plain, "https://example.com/page")
+    }
+
+    func testPlainFallbackCanBeOverridden() throws {
+        let payload = try XCTUnwrap(LinkPayloadBuilder.build(text: "the docs", url: url, plainText: "the docs"))
         XCTAssertEqual(payload.plain, "the docs")
     }
 
-    func testPlainFallbackIsTheTextNotTheURL() throws {
-        // A plain-text field that ignores our rich flavors should end up with the
-        // text unchanged — a harmless no-op, not a URL dumped over the selection.
+    func testFlavorsCoverEveryPasteboardTypeWePromise() throws {
         let payload = try XCTUnwrap(LinkPayloadBuilder.build(text: "the docs", url: url))
-        XCTAssertEqual(payload.plain, "the docs")
-        XCTAssertFalse(payload.plain.contains("example.com"))
+        let flavors = payload.flavors
+
+        XCTAssertEqual(flavors[.rtf], payload.rtf)
+        XCTAssertEqual(flavors[.html], payload.html)
+        XCTAssertEqual(flavors[.string], Data(payload.plain.utf8))
     }
 
     func testRTFRoundTripsToALinkedString() throws {
