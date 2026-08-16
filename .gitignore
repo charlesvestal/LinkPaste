@@ -5,3 +5,4 @@ dist/
 *.p8
 .DS_Store
 Resources/AppIcon.icns
+.serena/
