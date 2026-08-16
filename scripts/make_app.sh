@@ -62,6 +62,16 @@ for required in Resources/AppIcon.icns Resources/Assets.car; do
   [[ -e "$APP/Contents/$required" ]] || { echo "error: missing $required" >&2; exit 1; }
 done
 
+# Ad-hoc sign the assembled bundle (not just the loose binary) so it has a
+# designated requirement bound to the bundle's Info.plist and resources.
+# Without this, Accessibility grants don't reliably stick to local dev
+# builds — the linker's bare ad-hoc signature on the Mach-O alone doesn't
+# cover the bundle, so TCC can't consistently recognize it between launches.
+# scripts/sign_notarize.sh replaces this with a real Developer ID signature
+# for release builds; --force lets it do that without complaint.
+echo "==> Ad-hoc signing (for local runs; release replaces this with Developer ID)"
+codesign --force --deep --sign - "$APP"
+
 # Confirm the binary really is universal — a silently single-arch release would
 # only fail for the users who can't run it.
 echo "==> Architectures: $(lipo -archs "$APP/Contents/MacOS/LinkPasteApp")"
