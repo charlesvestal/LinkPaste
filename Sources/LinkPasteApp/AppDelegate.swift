@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 /// Wires the pieces together and owns the Settings window. Everything with real
@@ -10,6 +11,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissions = PermissionsMonitor()
     private let eventTap = EventTapController()
     private let menuBar = MenuBarController()
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     private var engine: PasteEngine!
     private var settingsWindow: NSWindow?
@@ -29,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             settings.isEnabled.toggle()
             refreshMenuBar()
+        }
+        menuBar.onCheckForUpdates = { [weak self] in
+            self?.updaterController.checkForUpdates(nil)
         }
 
         permissions.onChange = { [weak self] trusted in

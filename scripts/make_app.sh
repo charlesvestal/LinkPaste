@@ -22,16 +22,28 @@ echo "==> Building LinkPaste $VERSION (build $BUILD)"
 # which runner architecture produced it.
 swift build -c release --arch arm64 --arch x86_64
 
-BINARY="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/LinkPasteApp"
+BIN_PATH="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
+BINARY="$BIN_PATH/LinkPasteApp"
 [[ -f "$BINARY" ]] || { echo "error: binary not found at $BINARY" >&2; exit 1; }
+
+SPARKLE_FRAMEWORK="$(find .build/artifacts/sparkle -type d -name 'Sparkle.framework' -path '*macos*' | head -1)"
+[[ -d "$SPARKLE_FRAMEWORK" ]] || { echo "error: Sparkle.framework not found — run 'swift package resolve' first" >&2; exit 1; }
 
 echo "==> Assembling $APP"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 
 cp "$BINARY" "$APP/Contents/MacOS/LinkPasteApp"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" \
     Resources/Info.plist > "$APP/Contents/Info.plist"
+
+# SwiftPM links Sparkle as @rpath/Sparkle.framework/..., and the binary's rpath
+# includes @executable_path/../lib but not ../Frameworks — the layout SwiftPM
+# builds for isn't a signed app bundle. Add the missing rpath and place the
+# framework where it points.
+echo "==> Bundling Sparkle.framework"
+cp -R "$SPARKLE_FRAMEWORK" "$APP/Contents/Frameworks/"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/LinkPasteApp"
 
 # Regenerated every build so the shipped icon always matches scripts/make_icon.swift
 # rather than drifting from a stale committed binary.

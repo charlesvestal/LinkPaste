@@ -46,8 +46,19 @@ git tag -a "$TAG" -m "$TAG"
 git push origin "$TAG"
 
 echo "==> Publishing release"
-gh release create "$TAG" dist/LinkPaste.zip \
+# Named with the version so the local Sparkle archive (which holds every
+# version's zip side by side) and the generated appcast's download URL both
+# stay unambiguous.
+VERSIONED_ZIP="dist/LinkPaste-$VERSION.zip"
+cp dist/LinkPaste.zip "$VERSIONED_ZIP"
+gh release create "$TAG" "$VERSIONED_ZIP" \
   --title "$TAG" \
   --generate-notes
+
+echo "==> Updating appcast"
+scripts/update_appcast.sh "$VERSION"
+git add docs/appcast.xml
+git commit -m "Update appcast for $TAG"
+git push origin main
 
 echo "==> Done: $(gh release view "$TAG" --json url -q .url)"

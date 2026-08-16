@@ -29,5 +29,15 @@
 	<!-- Menu bar only: no Dock icon, no ⌘-Tab entry. -->
 	<key>LSUIElement</key>
 	<true/>
+	<!-- Sparkle: appcast is committed to the repo and served over raw.githubusercontent.com,
+	     so shipping an update is just "commit docs/appcast.xml" — no separate hosting. -->
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/charlesvestal/LinkPaste/main/docs/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>1kTnRJGKFSYnuKtRyaxYNQlyd4QvZExWXNXDeaKUAjE=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

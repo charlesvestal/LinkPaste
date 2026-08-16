@@ -34,6 +34,7 @@ final class MenuBarController {
 
     var onOpenSettings: () -> Void = {}
     var onToggleEnabled: () -> Void = {}
+    var onCheckForUpdates: () -> Void = {}
 
     private let statusItem: NSStatusItem
     private let enableItem: NSMenuItem
@@ -68,6 +69,10 @@ final class MenuBarController {
         settingsItem.target = self
         menu.addItem(settingsItem)
 
+        let updatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updatesItem.target = self
+        menu.addItem(updatesItem)
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit LinkPaste", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
@@ -93,4 +98,5 @@ final class MenuBarController {
 
     @objc private func openSettings() { onOpenSettings() }
     @objc private func toggleEnabled() { onToggleEnabled() }
+    @objc private func checkForUpdates() { onCheckForUpdates() }
 }
