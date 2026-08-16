@@ -14,6 +14,8 @@ struct SettingsView: View {
                 Divider().accessibilityHidden(true)
                 DenylistSection(settings: settings)
                 Divider().accessibilityHidden(true)
+                MarkdownListSection(settings: settings)
+                Divider().accessibilityHidden(true)
                 LastPasteSection(settings: settings)
             }
             .padding(20)
@@ -241,6 +243,73 @@ private struct DenylistRow: View {
             .accessibilityLabel("Remove \(AppCatalog.displayName(forBundleID: bundleID))")
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Markdown list
+
+private struct MarkdownListSection: View {
+    @ObservedObject var settings: Settings
+
+    @State private var runningApps: [AppInfo] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Use markdown links in")
+                .font(.headline)
+            Explanation("For apps whose rich-text paste doesn't work — e.g. Slack with \"Format messages with markup\" on. Adds [text](url) as plain text instead.")
+
+            ForEach(settings.userMarkdownList, id: \.self) { bundleID in
+                DenylistRow(bundleID: bundleID) { settings.removeFromMarkdownList(bundleID) }
+            }
+
+            addControls
+        }
+        .onAppear { refreshRunningApps() }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Markdown apps")
+    }
+
+    private var addControls: some View {
+        HStack {
+            Menu("Add Running App…") {
+                if selectableRunningApps.isEmpty {
+                    Text("No other apps running")
+                } else {
+                    ForEach(selectableRunningApps) { app in
+                        Button {
+                            settings.addToMarkdownList(app.bundleID)
+                        } label: {
+                            if let icon = app.icon {
+                                Label { Text(app.name) } icon: { Image(nsImage: icon) }
+                            } else {
+                                Text(app.name)
+                            }
+                        }
+                    }
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .onTapGesture { refreshRunningApps() }
+
+            Button("Choose App…") {
+                if let app = AppCatalog.chooseApplication() {
+                    settings.addToMarkdownList(app.bundleID)
+                }
+            }
+
+            Spacer()
+        }
+    }
+
+    private var selectableRunningApps: [AppInfo] {
+        let selected = Set(settings.userMarkdownList)
+        return runningApps.filter { !selected.contains($0.bundleID) }
+    }
+
+    private func refreshRunningApps() {
+        runningApps = AppCatalog.runningApps()
     }
 }
 

@@ -23,6 +23,10 @@ final class Settings: ObservableObject {
 
     @Published var userDenylist: [String] { didSet { defaults.set(userDenylist, forKey: Key.denylist) } }
 
+    /// Apps whose composer wants `[text](url)` markdown as plain text
+    /// instead of RTF/HTML — see `AppPolicy.markdownList`.
+    @Published var userMarkdownList: [String] { didSet { defaults.set(userMarkdownList, forKey: Key.markdownList) } }
+
     /// What happened on the last ⌘V, shown in Settings so the app can explain
     /// itself when it decides *not* to link something.
     @Published var lastOutcomeDescription = "No pastes yet"
@@ -44,6 +48,7 @@ final class Settings: ObservableObject {
         let storedDelay = defaults.object(forKey: Key.restoreDelay) as? Int ?? Self.defaultDelay
         restoreDelayMilliseconds = storedDelay.clamped(to: Self.delayRange)
         userDenylist = defaults.stringArray(forKey: Key.denylist) ?? []
+        userMarkdownList = defaults.stringArray(forKey: Key.markdownList) ?? []
         launchesAtLogin = SMAppService.mainApp.status == .enabled
     }
 
@@ -55,7 +60,9 @@ final class Settings: ObservableObject {
     /// app which never copies doesn't leave the user staring at a stalled keystroke.
     var copyProbeTimeout: TimeInterval { 0.35 }
 
-    var policy: AppPolicy { AppPolicy(userDenylist: Set(userDenylist)) }
+    var policy: AppPolicy {
+        AppPolicy(userDenylist: Set(userDenylist), markdownList: Set(userMarkdownList))
+    }
 
     /// Bundle IDs excluded without the user having to configure anything.
     var builtInDenylist: [String] { AppPolicy.defaultDenylist.sorted() }
@@ -70,6 +77,18 @@ final class Settings: ObservableObject {
 
     func removeFromDenylist(_ entry: String) {
         userDenylist.removeAll { $0 == entry }
+    }
+
+    // MARK: - Markdown list editing
+
+    func addToMarkdownList(_ rawEntry: String) {
+        let entry = rawEntry.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !entry.isEmpty, !userMarkdownList.contains(entry) else { return }
+        userMarkdownList.append(entry)
+    }
+
+    func removeFromMarkdownList(_ entry: String) {
+        userMarkdownList.removeAll { $0 == entry }
     }
 
     // MARK: - Launch at login
@@ -95,6 +114,7 @@ final class Settings: ObservableObject {
         static let copyProbe = "allowsCopyProbe"
         static let restoreDelay = "restoreDelayMilliseconds"
         static let denylist = "userDenylist"
+        static let markdownList = "userMarkdownList"
     }
 }
 

@@ -55,4 +55,27 @@ final class LinkPayloadTests: XCTestCase {
         let restored = try XCTUnwrap(NSAttributedString(rtf: payload.rtf, documentAttributes: nil))
         XCTAssertEqual(restored.string, #"a\b{c}d"#)
     }
+
+    func testBuildsMarkdownLink() {
+        let markdown = LinkPayloadBuilder.buildMarkdown(text: "the docs", url: url)
+        XCTAssertEqual(markdown, "[the docs](https://example.com/page)")
+    }
+
+    func testMarkdownEscapesBracketsInText() {
+        let markdown = LinkPayloadBuilder.buildMarkdown(text: "a [note] here", url: url)
+        XCTAssertEqual(markdown, #"[a \[note\] here](https://example.com/page)"#)
+    }
+
+    func testMarkdownEscapesBackslashesBeforeBrackets() {
+        // Escaping backslashes first, then brackets, means a literal `\[` in the
+        // input doesn't get treated as an already-escaped bracket.
+        let markdown = LinkPayloadBuilder.buildMarkdown(text: #"a\[b"#, url: url)
+        XCTAssertEqual(markdown, #"[a\\\[b](https://example.com/page)"#)
+    }
+
+    func testMarkdownLeavesURLUnescaped() {
+        let parenURL = URL(string: "https://en.wikipedia.org/wiki/Link_(film)")!
+        let markdown = LinkPayloadBuilder.buildMarkdown(text: "Link (film)", url: parenURL)
+        XCTAssertEqual(markdown, "[Link (film)](https://en.wikipedia.org/wiki/Link_(film))")
+    }
 }

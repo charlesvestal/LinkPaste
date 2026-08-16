@@ -48,4 +48,34 @@ final class AppPolicyTests: XCTestCase {
         XCTAssertFalse(policy.allowsLinkPaste(bundleID: nil))
         XCTAssertFalse(policy.allowsLinkPaste(bundleID: ""))
     }
+
+    func testMarkdownListHasNoBuiltInMembers() {
+        // Whether markdown mode applies is a per-user in-app setting, not a
+        // property of the app itself — so there's nothing safe to default.
+        let policy = AppPolicy()
+        XCTAssertFalse(policy.usesMarkdownLinks(bundleID: "com.tinyspeck.slackmacgap"))
+    }
+
+    func testMarkdownListIsHonored() {
+        let policy = AppPolicy(markdownList: ["com.tinyspeck.slackmacgap"])
+        XCTAssertTrue(policy.usesMarkdownLinks(bundleID: "com.tinyspeck.slackmacgap"))
+        XCTAssertFalse(policy.usesMarkdownLinks(bundleID: "com.apple.mail"))
+    }
+
+    func testMarkdownListMatchesPrefixesAndIsCaseInsensitive() {
+        let policy = AppPolicy(markdownList: ["com.jetbrains."])
+        XCTAssertTrue(policy.usesMarkdownLinks(bundleID: "COM.JETBRAINS.INTELLIJ"))
+        XCTAssertFalse(policy.usesMarkdownLinks(bundleID: "com.jetbrainsfanclub.app"))
+    }
+
+    func testMarkdownListDoesNotAffectDenylist() {
+        let policy = AppPolicy(markdownList: ["com.tinyspeck.slackmacgap"])
+        XCTAssertTrue(policy.allowsLinkPaste(bundleID: "com.tinyspeck.slackmacgap"))
+    }
+
+    func testMarkdownListRejectsUnknownApp() {
+        let policy = AppPolicy(markdownList: ["com.tinyspeck.slackmacgap"])
+        XCTAssertFalse(policy.usesMarkdownLinks(bundleID: nil))
+        XCTAssertFalse(policy.usesMarkdownLinks(bundleID: ""))
+    }
 }
