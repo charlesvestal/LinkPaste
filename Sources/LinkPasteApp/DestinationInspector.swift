@@ -24,11 +24,16 @@ enum DestinationInspector {
         let role = string(element, kAXRoleAttribute) ?? ""
         guard !role.isEmpty else { return nil }
 
+        let host = webHost(startingAt: element, role: role) ?? ""
+
         return DestinationContext(
             bundleID: bundleID,
             role: role,
             subrole: string(element, kAXSubroleAttribute) ?? "",
-            host: webHost(startingAt: element, role: role) ?? ""
+            host: host,
+            // Only for desktop content: a browser's window title churns with the
+            // page and would fragment what `host` already scopes correctly.
+            window: host.isEmpty ? (windowIdentity(startingAt: element, role: role) ?? "") : ""
         )
     }
 
@@ -45,6 +50,26 @@ enum DestinationInspector {
             if currentRole == kAXWindowRole as String || currentRole == kAXApplicationRole as String {
                 return nil
             }
+            guard let parent = self.element(current, kAXParentAttribute) else { return nil }
+            current = parent
+            currentRole = string(parent, kAXRoleAttribute) ?? ""
+        }
+        return nil
+    }
+
+    /// Walks up to the enclosing window and reads something that tells it apart
+    /// from the app's other windows: the represented document's path if it has
+    /// one, otherwise the window title (still distinct per window even for an
+    /// unsaved document — TextEdit numbers them "Untitled 1", "Untitled 2", ...).
+    private static func windowIdentity(startingAt element: AXUIElement, role: String) -> String? {
+        var current = element
+        var currentRole = role
+
+        for _ in 0..<maxParentHops {
+            if currentRole == kAXWindowRole as String {
+                return string(current, kAXDocumentAttribute) ?? string(current, kAXTitleAttribute)
+            }
+            if currentRole == kAXApplicationRole as String { return nil }
             guard let parent = self.element(current, kAXParentAttribute) else { return nil }
             current = parent
             currentRole = string(parent, kAXRoleAttribute) ?? ""
