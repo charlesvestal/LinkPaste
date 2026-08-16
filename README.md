@@ -18,9 +18,7 @@ Slack, Notion, Jira and Bear each build this in. macOS doesn't provide it, so ev
 
 Download `LinkPaste.zip` from [Releases](../../releases), unzip, and drag `LinkPaste.app` to `/Applications`.
 
-On first launch it will ask for **Accessibility** access. It genuinely cannot work without this — seeing ⌘V and reading your selection both require it.
-
-> **Note:** This permission survives normal updates — it's tied to the app's signing identity, not to each build. It is dropped if that identity changes, and on every rebuild of a locally ad-hoc-signed development build. If link pasting silently stops working, that's the first thing to check: the menu bar icon shows it, and Settings has a button to re-grant.
+On first launch it will ask for **Accessibility** access. It genuinely cannot work without this; seeing ⌘V and reading your selection both require it.
 
 ## How it works
 
@@ -65,8 +63,6 @@ swift test            # 39 unit tests
 scripts/make_app.sh   # assemble and ad-hoc sign dist/LinkPaste.app
 ```
 
-The app icon is drawn in code — [`scripts/make_icon.swift`](scripts/make_icon.swift) — and regenerated on every build, so it lives in the diff rather than as an opaque binary. The glyph is custom-drawn because SF Symbols are licensed for use *in* an interface, not as an app icon.
-
 Releases are cut locally:
 
 ```sh
@@ -74,8 +70,6 @@ scripts/release.sh 0.1.0
 ```
 
 That tests, builds a universal binary, signs it with Developer ID, notarizes and staples it, tags, and publishes a GitHub release.
-
-Signing runs on a Mac rather than in CI on purpose: doing it in Actions would mean putting the Developer ID private key into repository secrets, where any job step or compromised action could read it. CI ([`ci.yml`](.github/workflows/ci.yml)) builds and tests; it never touches a credential.
 
 ## Not on the Mac App Store
 
