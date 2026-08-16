@@ -28,9 +28,31 @@ ZIP="dist/LinkPaste.zip"
 
 [[ -d "$APP" ]] || { echo "error: $APP not found — run scripts/make_app.sh first" >&2; exit 1; }
 
+FRAMEWORK="$APP/Contents/Frameworks/Sparkle.framework"
+
+echo "==> Signing Sparkle.framework's nested components (hardened runtime + secure timestamp)"
+# A bare `codesign` on the app bundle only signs the outer envelope — it does
+# not reach into Sparkle.framework. Every embedded executable has to carry its
+# own Developer ID signature with hardened runtime, or notarization rejects
+# the whole submission. Sign inside-out: leaves before the tree that contains
+# them, XPC services and the Updater.app before the framework itself.
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+  "$FRAMEWORK/Versions/B/Autoupdate"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+  "$FRAMEWORK/Versions/B/XPCServices/Downloader.xpc"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+  "$FRAMEWORK/Versions/B/XPCServices/Installer.xpc"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+  "$FRAMEWORK/Versions/B/Updater.app"
+codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+  "$FRAMEWORK"
+codesign --verify --strict --verbose=2 "$FRAMEWORK"
+
 echo "==> Signing with Developer ID (hardened runtime + secure timestamp)"
 # --options runtime is mandatory: the notary service rejects anything without
-# the hardened runtime enabled.
+# the hardened runtime enabled. No --deep: the framework tree above is already
+# signed piece by piece, and --deep's automatic re-signing doesn't reliably
+# apply the right options to nested bundles.
 codesign --force --options runtime --timestamp \
   --entitlements "$ENTITLEMENTS" \
   --sign "$IDENTITY" "$APP"
