@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>LinkPaste</title>
+        <item>
+            <title>0.4.0</title>
+            <pubDate>Sun, 16 Aug 2026 14:58:20 +0200</pubDate>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/charlesvestal/LinkPaste/releases/download/v0.4.0/LinkPaste-0.4.0.zip" length="1594368" type="application/octet-stream" sparkle:edSignature="EZ6AA/77EiSSa1hj6Vpu3yL5LBH3CrsJz9gRU+3cYONf2ke3HuggnbOtE6wby8hW1o8tnpmkJ7xO7j7X0CvZBg=="/>
+        </item>
+    </channel>
+</rss>
