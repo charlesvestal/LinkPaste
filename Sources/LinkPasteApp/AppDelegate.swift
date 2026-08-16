@@ -99,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "LinkPaste"
         window.isReleasedWhenClosed = false
         window.setContentSize(Self.settingsWindowSize)
+        window.minSize = NSSize(width: 460, height: 380)
         window.center()
         return window
     }

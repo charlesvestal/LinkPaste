@@ -6,20 +6,14 @@ struct SettingsView: View {
     @ObservedObject var permissions: PermissionsMonitor
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                PermissionsSection(permissions: permissions)
-                Divider().accessibilityHidden(true)
-                BehaviorSection(settings: settings)
-                Divider().accessibilityHidden(true)
-                DenylistSection(settings: settings)
-                Divider().accessibilityHidden(true)
-                MarkdownListSection(settings: settings)
-                Divider().accessibilityHidden(true)
-                LastPasteSection(settings: settings)
-            }
-            .padding(20)
+        Form {
+            PermissionsSection(permissions: permissions)
+            BehaviorSection(settings: settings)
+            DenylistSection(settings: settings)
+            MarkdownListSection(settings: settings)
+            LastPasteSection(settings: settings)
         }
+        .formStyle(.grouped)
         .frame(minWidth: 460, idealWidth: 480, minHeight: 380, idealHeight: 560)
     }
 }
@@ -30,27 +24,31 @@ private struct PermissionsSection: View {
     @ObservedObject var permissions: PermissionsMonitor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Status is carried by the text, not only by the icon's color, so it
-            // survives both VoiceOver and color-blind viewing.
-            Label(
-                permissions.isTrusted ? "Accessibility access granted" : "Accessibility access required",
-                systemImage: permissions.isTrusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-            )
-            .font(.headline)
-            .foregroundStyle(permissions.isTrusted ? Color.green : Color.orange)
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                // Status is carried by the text, not only by the icon's color, so it
+                // survives both VoiceOver and color-blind viewing.
+                Label(
+                    permissions.isTrusted ? "Accessibility access granted" : "Accessibility access required",
+                    systemImage: permissions.isTrusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(permissions.isTrusted ? Color.green : Color.orange)
 
-            if !permissions.isTrusted {
-                Explanation("LinkPaste can't see ⌘V without it. If link pasting stops working, check here first — macOS drops this permission when an app's signing identity changes.")
+                if !permissions.isTrusted {
+                    Explanation("LinkPaste can't see ⌘V without it. If link pasting stops working, check here first — macOS drops this permission when an app's signing identity changes.")
 
-                HStack {
-                    Button("Open Privacy Settings") { permissions.openSettings() }
-                    Button("Request Access") { permissions.requestAccess() }
+                    HStack {
+                        Button("Open Privacy Settings") { permissions.openSettings() }
+                        Button("Request Access") { permissions.requestAccess() }
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Permissions")
+        } header: {
+            Text("Permissions")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Permissions")
     }
 }
 
@@ -60,21 +58,24 @@ private struct BehaviorSection: View {
     @ObservedObject var settings: Settings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle("Enable link pasting", isOn: $settings.isEnabled)
-                .font(.headline)
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Enable link pasting", isOn: $settings.isEnabled)
 
-            launchAtLogin
+                launchAtLogin
 
-            VStack(alignment: .leading, spacing: 4) {
-                Toggle("Use ⌘C fallback to detect selection", isOn: $settings.allowsCopyProbe)
-                Explanation("Required for browsers, Slack, and Notion — they don't report the selection any other way. Turn it off if you'd rather no synthetic ⌘C is ever sent.")
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Use ⌘C fallback to detect selection", isOn: $settings.allowsCopyProbe)
+                    Explanation("Required for browsers, Slack, and Notion — they don't report the selection any other way. Turn it off if you'd rather no synthetic ⌘C is ever sent.")
+                }
+
+                restoreDelay
             }
-
-            restoreDelay
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Behavior")
+        } header: {
+            Text("Behavior")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Behavior")
     }
 
     private var launchAtLogin: some View {
@@ -135,33 +136,37 @@ private struct DenylistSection: View {
     @State private var runningApps: [AppInfo] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Never link-paste in these apps")
-                .font(.headline)
-            Explanation("Terminals, code editors, and password managers are excluded automatically. Add anything else here.")
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Explanation("Terminals, code editors, and password managers are excluded automatically. Add anything else here.")
 
-            ForEach(settings.userDenylist, id: \.self) { bundleID in
-                DenylistRow(bundleID: bundleID) { settings.removeFromDenylist(bundleID) }
-            }
-
-            addControls
-
-            DisclosureGroup("Excluded automatically (\(settings.builtInDenylist.count))", isExpanded: $showsBuiltIns) {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(settings.builtInDenylist, id: \.self) { entry in
-                        Text(entry)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
+                ForEach(settings.userDenylist, id: \.self) { bundleID in
+                    DenylistRow(bundleID: bundleID) { settings.removeFromDenylist(bundleID) }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 4)
+
+                addControls
+
+                DisclosureGroup(isExpanded: $showsBuiltIns) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(settings.builtInDenylist, id: \.self) { entry in
+                            Text(entry)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+                } label: {
+                    Text("Excluded automatically (\(settings.builtInDenylist.count))")
+                        .font(.subheadline)
+                }
             }
-            .font(.caption)
+            .onAppear { refreshRunningApps() }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Excluded apps")
+        } header: {
+            Text("Never link-paste in these apps")
         }
-        .onAppear { refreshRunningApps() }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Excluded apps")
     }
 
     private var addControls: some View {
@@ -185,7 +190,7 @@ private struct DenylistSection: View {
                     }
                 }
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
             .fixedSize()
             .onTapGesture { refreshRunningApps() }
 
@@ -194,6 +199,7 @@ private struct DenylistSection: View {
                     settings.addToDenylist(app.bundleID)
                 }
             }
+            .buttonStyle(.bordered)
 
             Spacer()
         }
@@ -254,20 +260,22 @@ private struct MarkdownListSection: View {
     @State private var runningApps: [AppInfo] = []
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Use markdown links in")
-                .font(.headline)
-            Explanation("For apps whose rich-text paste doesn't work — e.g. Slack with \"Format messages with markup\" on. Adds [text](url) as plain text instead. This overrides an app's denylist entry, built-in or not.")
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Explanation("For apps whose rich-text paste doesn't work — e.g. Slack with \"Format messages with markup\" on. Adds [text](url) as plain text instead. This overrides an app's denylist entry, built-in or not.")
 
-            ForEach(settings.userMarkdownList, id: \.self) { bundleID in
-                DenylistRow(bundleID: bundleID) { settings.removeFromMarkdownList(bundleID) }
+                ForEach(settings.userMarkdownList, id: \.self) { bundleID in
+                    DenylistRow(bundleID: bundleID) { settings.removeFromMarkdownList(bundleID) }
+                }
+
+                addControls
             }
-
-            addControls
+            .onAppear { refreshRunningApps() }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Markdown apps")
+        } header: {
+            Text("Use markdown links in")
         }
-        .onAppear { refreshRunningApps() }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Markdown apps")
     }
 
     private var addControls: some View {
@@ -289,7 +297,7 @@ private struct MarkdownListSection: View {
                     }
                 }
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
             .fixedSize()
             .onTapGesture { refreshRunningApps() }
 
@@ -298,6 +306,7 @@ private struct MarkdownListSection: View {
                     settings.addToMarkdownList(app.bundleID)
                 }
             }
+            .buttonStyle(.bordered)
 
             Spacer()
         }
@@ -319,15 +328,16 @@ private struct LastPasteSection: View {
     @ObservedObject var settings: Settings
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Last paste").font(.headline)
+        Section {
             Text(settings.lastOutcomeDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Last paste: \(settings.lastOutcomeDescription)")
+        } header: {
+            Text("Last paste")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Last paste: \(settings.lastOutcomeDescription)")
     }
 }
 
