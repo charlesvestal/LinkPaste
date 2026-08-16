@@ -68,9 +68,20 @@ final class AppPolicyTests: XCTestCase {
         XCTAssertFalse(policy.usesMarkdownLinks(bundleID: "com.jetbrainsfanclub.app"))
     }
 
-    func testMarkdownListDoesNotAffectDenylist() {
-        let policy = AppPolicy(markdownList: ["com.tinyspeck.slackmacgap"])
-        XCTAssertTrue(policy.allowsLinkPaste(bundleID: "com.tinyspeck.slackmacgap"))
+    func testMarkdownListOverridesTheBuiltInDenylist() {
+        // A user who explicitly asks for markdown output in, say, VS Code has
+        // already decided link-pasting belongs there — the built-in denylist
+        // entry (there to block a useless rich-text paste) no longer applies
+        // once the paste isn't rich text.
+        let policy = AppPolicy(markdownList: ["com.microsoft.VSCode"])
+        XCTAssertTrue(policy.allowsLinkPaste(bundleID: "com.microsoft.VSCode"))
+        // Apps not on the markdown list stay denied as before.
+        XCTAssertFalse(policy.allowsLinkPaste(bundleID: "com.apple.dt.Xcode"))
+    }
+
+    func testMarkdownListOverridesTheUserDenylistToo() {
+        let policy = AppPolicy(userDenylist: ["com.example.CustomApp"], markdownList: ["com.example.CustomApp"])
+        XCTAssertTrue(policy.allowsLinkPaste(bundleID: "com.example.CustomApp"))
     }
 
     func testMarkdownListRejectsUnknownApp() {
