@@ -33,8 +33,18 @@ enum SelectionReader {
 
     /// Returns the selection, or nil if there isn't one (or we couldn't tell).
     static func read(pasteboard: NSPasteboard, allowCopyProbe: Bool, probeTimeout: TimeInterval) -> Result? {
-        if let text = readViaAccessibility(), !text.isEmpty {
-            return Result(text: text, source: .accessibility)
+        if let element = focusedElement() {
+            // Single-line fields — address bars, search boxes, filename fields —
+            // always report their full contents as "selected" when focused. Linking
+            // that would silently replace whatever's being pasted with the field's
+            // old contents, since these fields can't render rich text anyway. Bail
+            // out entirely rather than falling through to the ⌘C probe, which would
+            // hit the same trap.
+            if isSingleLineTextField(element) { return nil }
+
+            if let text = selectedText(from: element), !text.isEmpty {
+                return Result(text: text, source: .accessibility)
+            }
         }
 
         guard allowCopyProbe else { return nil }
@@ -48,7 +58,7 @@ enum SelectionReader {
 
     // MARK: - Accessibility
 
-    static func readViaAccessibility() -> String? {
+    static func focusedElement() -> AXUIElement? {
         // Electron apps ship with their accessibility tree switched off until
         // something asks for it. Poking this makes Slack, VS Code and friends
         // answer AXSelectedText without needing the ⌘C probe.
@@ -61,14 +71,30 @@ enum SelectionReader {
               let focused = focusedRef, CFGetTypeID(focused) == AXUIElementGetTypeID()
         else { return nil }
 
-        let element = unsafeDowncast(focused, to: AXUIElement.self)
+        return unsafeDowncast(focused, to: AXUIElement.self)
+    }
 
+    static func selectedText(from element: AXUIElement) -> String? {
         var selectedRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selectedRef) == .success,
               let selected = selectedRef, CFGetTypeID(selected) == CFStringGetTypeID()
         else { return nil }
 
         return selected as? String
+    }
+
+    static func isSingleLineTextField(_ element: AXUIElement) -> Bool {
+        var roleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+              let role = roleRef as? String
+        else { return false }
+
+        return role == kAXTextFieldRole as String
+    }
+
+    static func readViaAccessibility() -> String? {
+        guard let element = focusedElement() else { return nil }
+        return selectedText(from: element)
     }
 
     static func wakeAccessibilityForFrontmostApp() {
