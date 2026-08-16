@@ -50,4 +50,20 @@ public enum LinkPayloadBuilder {
 
         return LinkPayload(rtf: rtf, html: html, plain: text)
     }
+
+    /// Builds `[text](url)` for composers that read pasted content as literal
+    /// markdown — e.g. Slack with "Format messages with markup" on, where the
+    /// RTF/HTML this app normally writes doesn't render.
+    ///
+    /// Only `text` is escaped (`\`, `[`, `]`, in that order so escaping the
+    /// brackets doesn't get re-escaped by the backslash pass). The URL is left
+    /// untouched: Slack's parser tolerates parens and other special characters
+    /// there in practice, and over-escaping risks corrupting it.
+    public static func buildMarkdown(text: String, url: URL) -> String {
+        var escaped = text
+        escaped = escaped.replacingOccurrences(of: "\\", with: "\\\\")
+        escaped = escaped.replacingOccurrences(of: "[", with: "\\[")
+        escaped = escaped.replacingOccurrences(of: "]", with: "\\]")
+        return "[\(escaped)](\(url.absoluteString))"
+    }
 }

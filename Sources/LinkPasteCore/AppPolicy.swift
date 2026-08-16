@@ -46,9 +46,20 @@ public struct AppPolicy: Equatable {
     public var userDenylist: Set<String>
     public var builtInDenylist: Set<String>
 
-    public init(userDenylist: Set<String> = [], builtInDenylist: Set<String> = AppPolicy.defaultDenylist) {
+    /// Bundle IDs of apps whose composer wants `[text](url)` markdown as
+    /// plain text, rather than RTF/HTML — e.g. Slack with "Format messages
+    /// with markup" on. No built-in members: whether markdown mode applies
+    /// is a per-user app setting, not a property of the app itself.
+    public var markdownList: Set<String>
+
+    public init(
+        userDenylist: Set<String> = [],
+        builtInDenylist: Set<String> = AppPolicy.defaultDenylist,
+        markdownList: Set<String> = []
+    ) {
         self.userDenylist = userDenylist
         self.builtInDenylist = builtInDenylist
+        self.markdownList = markdownList
     }
 
     public func allowsLinkPaste(bundleID: String?) -> Bool {
@@ -58,9 +69,18 @@ public struct AppPolicy: Equatable {
         return !isDenied(bundleID)
     }
 
+    public func usesMarkdownLinks(bundleID: String?) -> Bool {
+        guard let bundleID, !bundleID.isEmpty else { return false }
+        return Self.matches(bundleID, in: markdownList)
+    }
+
     func isDenied(_ bundleID: String) -> Bool {
+        Self.matches(bundleID, in: builtInDenylist.union(userDenylist))
+    }
+
+    private static func matches(_ bundleID: String, in entries: Set<String>) -> Bool {
         let id = bundleID.lowercased()
-        for entry in builtInDenylist.union(userDenylist) {
+        for entry in entries {
             let e = entry.lowercased()
             if e.hasSuffix(".") ? id.hasPrefix(e) : id == e { return true }
         }

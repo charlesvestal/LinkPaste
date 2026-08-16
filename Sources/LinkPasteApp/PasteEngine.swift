@@ -135,11 +135,15 @@ final class PasteEngine {
             return passThrough(restoring: snapshot, reason: "no text selected")
         }
 
-        guard let payload = LinkPayloadBuilder.build(text: selection.text, url: url) else {
-            return passThrough(restoring: snapshot, reason: "could not build rich text")
+        if settings.policy.usesMarkdownLinks(bundleID: currentBundleID) {
+            let markdown = LinkPayloadBuilder.buildMarkdown(text: selection.text, url: url)
+            writeMarkdown(markdown)
+        } else {
+            guard let payload = LinkPayloadBuilder.build(text: selection.text, url: url) else {
+                return passThrough(restoring: snapshot, reason: "could not build rich text")
+            }
+            write(payload)
         }
-
-        write(payload)
         KeyPoster.postCommandV()
 
         // No app tells us when it has finished reading the pasteboard, so this
@@ -158,6 +162,17 @@ final class PasteEngine {
         item.setData(payload.rtf, forType: .rtf)
         item.setData(payload.html, forType: .html)
         item.setString(payload.plain, forType: .string)
+        pasteboard.writeObjects([item])
+    }
+
+    /// Markdown-mode composers (Slack with "Format messages with markup" on)
+    /// read pasted content as literal text to type, not rich text to render.
+    /// Writing RTF/HTML there is the exact bug this exists to avoid, so only
+    /// a plain-text flavor goes on the pasteboard.
+    private func writeMarkdown(_ markdown: String) {
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString(markdown, forType: .string)
         pasteboard.writeObjects([item])
     }
 
