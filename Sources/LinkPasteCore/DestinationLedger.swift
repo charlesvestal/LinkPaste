@@ -7,26 +7,45 @@ import Foundation
 /// to the next one. The page host is what keeps a browser honest — without it
 /// every text area in Chrome shares one identity, and Gmail's composer would hand
 /// its verdict to a GitHub comment box.
+///
+/// `window` does the same job for desktop apps that have no page host to key on.
+/// TextEdit's plain-text window and its rich-text window are otherwise identical
+/// — same bundle ID, same role, no host — so without it they share one verdict,
+/// and whichever was pasted into last silently overwrites what was learned about
+/// the other: a rich document gets left unlinked, or a plain one gets sent real
+/// RTF/HTML it can only mangle. It's left blank for web content on purpose —
+/// browser window titles change with the page, and `host` already disambiguates
+/// there without that churn.
 public struct DestinationContext: Hashable, Sendable {
     public let bundleID: String
     public let role: String
     public let subrole: String
     public let host: String
+    public let window: String
 
-    public init(bundleID: String, role: String, subrole: String = "", host: String = "") {
+    public init(bundleID: String, role: String, subrole: String = "", host: String = "", window: String = "") {
         self.bundleID = bundleID
         self.role = role
         self.subrole = subrole
         self.host = host
+        self.window = window
     }
 
-    public var key: String { [bundleID, role, subrole, host].joined(separator: "|") }
+    /// `window` is appended only when present, so a context that never sets it
+    /// (every existing caller, and every browser destination) produces exactly
+    /// the key it always has — no format bump, nothing to migrate.
+    public var key: String {
+        var parts = [bundleID, role, subrole, host]
+        if !window.isEmpty { parts.append(window) }
+        return parts.joined(separator: "|")
+    }
 
     /// For the "Last paste" line in Settings.
     public var label: String {
         var parts = [bundleID.isEmpty ? "(unknown app)" : bundleID]
         if !host.isEmpty { parts.append(host) }
         if !role.isEmpty { parts.append(role) }
+        if !window.isEmpty { parts.append(window) }
         return parts.joined(separator: " · ")
     }
 }

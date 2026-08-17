@@ -42,6 +42,34 @@ final class DestinationLedgerTests: XCTestCase {
         XCTAssertNil(ledger.kind(for: github, now: now), "a verdict for one site must not answer for another")
     }
 
+    func testWindowsInTheSameDesktopAppAreSeparateDestinations() {
+        // TextEdit's plain-text window and its rich-text window are otherwise
+        // identical — same bundle ID, same role, no host — so without `window`
+        // they'd share one verdict and whichever was pasted into last would
+        // silently overwrite what was learned about the other.
+        let richDoc = DestinationContext(bundleID: "com.apple.TextEdit", role: "AXTextArea", window: "Untitled 1.rtf")
+        let plainDoc = DestinationContext(bundleID: "com.apple.TextEdit", role: "AXTextArea", window: "Untitled 2")
+
+        var ledger = DestinationLedger()
+        ledger.record(.rich, for: richDoc, now: now)
+        ledger.record(.plain, for: plainDoc, now: now)
+
+        XCTAssertEqual(ledger.kind(for: richDoc, now: now), .rich)
+        XCTAssertEqual(ledger.kind(for: plainDoc, now: now), .plain)
+    }
+
+    func testAnUnsetWindowProducesTheSameKeyAsBeforeWindowExisted() {
+        // Every existing caller — including every browser destination, which
+        // deliberately never sets `window` — must keep resolving to the exact
+        // key it always has, so no entry silently stops matching.
+        let withoutWindow = DestinationContext(bundleID: "com.example", role: "AXTextArea")
+        XCTAssertEqual(withoutWindow.key, "com.example|AXTextArea||")
+
+        let withWindow = DestinationContext(bundleID: "com.example", role: "AXTextArea", window: "Untitled 1")
+        XCTAssertEqual(withWindow.key, "com.example|AXTextArea|||Untitled 1")
+        XCTAssertNotEqual(withWindow.key, withoutWindow.key)
+    }
+
     func testLaterObservationsWin() {
         var ledger = DestinationLedger()
         ledger.record(.rich, for: composer, now: now)
