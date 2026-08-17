@@ -27,6 +27,23 @@ final class Settings: ObservableObject {
     /// instead of RTF/HTML — see `AppPolicy.markdownList`.
     @Published var userMarkdownList: [String] { didSet { defaults.set(userMarkdownList, forKey: Key.markdownList) } }
 
+    /// Whether a destination observed to read plain text should get markdown
+    /// instead of being handed back an ordinary paste.
+    ///
+    /// This is `markdownList` without the per-app configuration: the same
+    /// treatment, applied wherever the destination actually turns out to be
+    /// plain, rather than wherever the user predicted it would be. Off by
+    /// default — it changes what lands in the document, and the conservative
+    /// answer for an unlinkable field is the paste the user would have got
+    /// without this app.
+    @Published var usesMarkdownInPlainDestinations: Bool {
+        didSet { defaults.set(usesMarkdownInPlainDestinations, forKey: Key.markdownWhenPlain) }
+    }
+
+    /// What each destination turned out to be, learned by watching which
+    /// pasteboard flavor it reads. See `PromisedPaste`.
+    let destinations: LedgerStore
+
     /// What happened on the last ⌘V, shown in Settings so the app can explain
     /// itself when it decides *not* to link something.
     @Published var lastOutcomeDescription = "No pastes yet"
@@ -43,7 +60,9 @@ final class Settings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        destinations = LedgerStore(defaults: defaults)
         isEnabled = defaults.object(forKey: Key.enabled) as? Bool ?? true
+        usesMarkdownInPlainDestinations = defaults.object(forKey: Key.markdownWhenPlain) as? Bool ?? false
         allowsCopyProbe = defaults.object(forKey: Key.copyProbe) as? Bool ?? true
         let storedDelay = defaults.object(forKey: Key.restoreDelay) as? Int ?? Self.defaultDelay
         restoreDelayMilliseconds = storedDelay.clamped(to: Self.delayRange)
@@ -115,6 +134,7 @@ final class Settings: ObservableObject {
         static let restoreDelay = "restoreDelayMilliseconds"
         static let denylist = "userDenylist"
         static let markdownList = "userMarkdownList"
+        static let markdownWhenPlain = "usesMarkdownInPlainDestinations"
     }
 }
 

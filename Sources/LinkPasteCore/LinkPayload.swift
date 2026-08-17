@@ -7,11 +7,15 @@ public struct LinkPayload: Equatable {
     public let rtf: Data
     /// HTML — what browser-based and Electron editors (Slack, Notion, Gmail) read.
     public let html: Data
-    /// Plain-text fallback.
+    /// Plain-text fallback — the URL, by default.
     ///
-    /// This is the *selected text*, not the URL. A plain-text field that ignores
-    /// our rich flavors then ends up with the text unchanged, which is a boring
-    /// no-op rather than a mangled paste.
+    /// This used to be the selected text, on the reasoning that leaving the text
+    /// unchanged is a harmless no-op. In practice it is the opposite of harmless:
+    /// the one moment this flavor is ever read is the moment we've guessed wrong
+    /// about a destination, and the user gets a ⌘V that silently does nothing —
+    /// no link, no URL, no explanation. Pasting the URL is what would have
+    /// happened without this app running, which is the bar `docs/DESIGN.md` sets
+    /// for every path that isn't a successful link-paste.
     public let plain: String
 
     public init(rtf: Data, html: Data, plain: String) {
@@ -19,16 +23,28 @@ public struct LinkPayload: Equatable {
         self.html = html
         self.plain = plain
     }
+
+    /// Keyed by pasteboard type, ready to hand to `PromisedPaste`.
+    public var flavors: [NSPasteboard.PasteboardType: Data] {
+        [
+            .rtf: rtf,
+            .html: html,
+            .string: Data(plain.utf8),
+        ]
+    }
 }
 
 public enum LinkPayloadBuilder {
 
     /// Builds `<a href="url">text</a>` in every flavor an editor might want.
     ///
+    /// `plainText` overrides the plain-text flavor; it defaults to the URL, so a
+    /// destination that turns out not to render links gets an ordinary paste.
+    ///
     /// Returns nil only if AppKit fails to serialize, which shouldn't happen for
     /// a single-run attributed string — but the caller treats nil as "just paste
     /// normally" rather than crashing on a keystroke the user makes constantly.
-    public static func build(text: String, url: URL) -> LinkPayload? {
+    public static func build(text: String, url: URL, plainText: String? = nil) -> LinkPayload? {
         let attributed = NSMutableAttributedString(string: text)
         let range = NSRange(location: 0, length: attributed.length)
         attributed.addAttribute(.link, value: url, range: range)
@@ -48,7 +64,7 @@ public enum LinkPayloadBuilder {
             ]
         ) else { return nil }
 
-        return LinkPayload(rtf: rtf, html: html, plain: text)
+        return LinkPayload(rtf: rtf, html: html, plain: plainText ?? url.absoluteString)
     }
 
     /// Builds `[text](url)` for composers that read pasted content as literal
